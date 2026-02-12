@@ -8,6 +8,17 @@ function Dashboard({ history, userStats, onViewEssay, onClearData }) {
   const [filterBy, setFilterBy] = useState('all');
   const [showInsights, setShowInsights] = useState(true);
 
+  // Default values to prevent errors if props are undefined
+  const defaultUserStats = {
+    averageScore: 0,
+    totalEssays: 0,
+    totalWords: 0,
+    streak: 0,
+    totalReadingTime: 0
+  };
+  const safeUserStats = userStats || defaultUserStats;
+  const safeHistory = history || [];
+
   const getScoreColor = (score) => {
     if (score >= 95) return 'excellent';
     if (score >= 85) return 'good';
@@ -30,11 +41,11 @@ function Dashboard({ history, userStats, onViewEssay, onClearData }) {
 
   // Advanced analytics
   const analytics = useMemo(() => {
-    if (history.length === 0) return null;
+    if (safeHistory.length === 0 || !safeUserStats.averageScore) return null;
 
-    const scores = history.map(essay => essay.score);
-    const recentScores = history.slice(0, 5).map(essay => essay.score);
-    const previousScores = history.slice(5, 10).map(essay => essay.score);
+    const scores = safeHistory.map(essay => essay.score);
+    const recentScores = safeHistory.slice(0, 5).map(essay => essay.score);
+    const previousScores = safeHistory.slice(5, 10).map(essay => essay.score);
     
     const trend = recentScores.length > 0 && previousScores.length > 0 
       ? (recentScores.reduce((a, b) => a + b, 0) / recentScores.length) - 
@@ -43,7 +54,7 @@ function Dashboard({ history, userStats, onViewEssay, onClearData }) {
 
     const bestScore = Math.max(...scores);
     const worstScore = Math.min(...scores);
-    const consistency = 100 - (Math.sqrt(scores.reduce((sum, score) => sum + Math.pow(score - userStats.averageScore, 2), 0) / scores.length) / userStats.averageScore * 100);
+    const consistency = 100 - (Math.sqrt(scores.reduce((sum, score) => sum + Math.pow(score - safeUserStats.averageScore, 2), 0) / scores.length) / safeUserStats.averageScore * 100);
 
     return {
       trend: Math.round(trend * 10) / 10,
@@ -51,10 +62,10 @@ function Dashboard({ history, userStats, onViewEssay, onClearData }) {
       worstScore,
       consistency: Math.max(0, Math.round(consistency))
     };
-  }, [history, userStats.averageScore]);
+  }, [safeHistory, safeUserStats.averageScore]);
 
   const filteredHistory = useMemo(() => {
-    return history
+    return safeHistory
       .filter(essay => {
         const matchesSearch = essay.title.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesFilter = filterBy === 'all' || getScoreColor(essay.score) === filterBy;
@@ -72,12 +83,12 @@ function Dashboard({ history, userStats, onViewEssay, onClearData }) {
             return b.id - a.id;
         }
       });
-  }, [history, searchTerm, filterBy, sortBy]);
+  }, [safeHistory, searchTerm, filterBy, sortBy]);
 
   const exportData = () => {
     const dataStr = JSON.stringify({
-      userStats,
-      essays: history,
+      userStats: safeUserStats,
+      essays: safeHistory,
       exportDate: new Date().toISOString()
     }, null, 2);
     
@@ -92,7 +103,7 @@ function Dashboard({ history, userStats, onViewEssay, onClearData }) {
     URL.revokeObjectURL(url);
   };
 
-  if (history.length === 0) {
+  if (safeHistory.length === 0) {
     return (
       <div className="dashboard-container">
         <div className="empty-state">
@@ -152,10 +163,10 @@ function Dashboard({ history, userStats, onViewEssay, onClearData }) {
             <Trophy size={36} />
           </div>
           <div className="stat-content">
-            <span className="stat-number">{userStats.averageScore}</span>
+            <span className="stat-number">{safeUserStats.averageScore}</span>
             <span className="stat-label">Average Score</span>
             <div className="stat-badge">
-              {getGradeLevel(userStats.averageScore)}
+              {getGradeLevel(safeUserStats.averageScore)}
             </div>
           </div>
           <div className="stat-trend">
@@ -175,11 +186,11 @@ function Dashboard({ history, userStats, onViewEssay, onClearData }) {
             <BookOpen size={36} />
           </div>
           <div className="stat-content">
-            <span className="stat-number">{userStats.totalEssays}</span>
+            <span className="stat-number">{safeUserStats.totalEssays}</span>
             <span className="stat-label">Essays Completed</span>
           </div>
           <div className="stat-detail">
-            <span>{userStats.totalWords.toLocaleString()} words total</span>
+            <span>{safeUserStats.totalWords.toLocaleString()} words total</span>
           </div>
         </div>
 
@@ -188,7 +199,7 @@ function Dashboard({ history, userStats, onViewEssay, onClearData }) {
             <Flame size={36} />
           </div>
           <div className="stat-content">
-            <span className="stat-number">{userStats.streak}</span>
+            <span className="stat-number">{safeUserStats.streak}</span>
             <span className="stat-label">Day Streak</span>
           </div>
           <div className="stat-detail">
@@ -201,11 +212,11 @@ function Dashboard({ history, userStats, onViewEssay, onClearData }) {
             <Clock size={36} />
           </div>
           <div className="stat-content">
-            <span className="stat-number">{userStats.totalReadingTime}</span>
+            <span className="stat-number">{safeUserStats.totalReadingTime}</span>
             <span className="stat-label">Reading Time (min)</span>
           </div>
           <div className="stat-detail">
-            <span>{Math.round(userStats.totalReadingTime / 60)}h total</span>
+            <span>{Math.round(safeUserStats.totalReadingTime / 60)}h total</span>
           </div>
         </div>
 
@@ -297,10 +308,10 @@ function Dashboard({ history, userStats, onViewEssay, onClearData }) {
               <div className="insight-content">
                 <h4>Achievement</h4>
                 <p>
-                  {userStats.streak >= 7 
+                  {safeUserStats.streak >= 7 
                     ? 'Amazing! Week-long writing streak! 🔥'
-                    : userStats.totalEssays >= 10
-                    ? `Great milestone: ${userStats.totalEssays} essays completed! 🎉`
+                    : safeUserStats.totalEssays >= 10
+                    ? `Great milestone: ${safeUserStats.totalEssays} essays completed! 🎉`
                     : 'Keep writing to unlock achievements! ⭐'
                   }
                 </p>
